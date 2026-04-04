@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Working Multi-Route</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/enhancements.css">
+    <style>
+        .route-card { background: white; border-radius: 8px; padding: 12px; margin: 8px 0; border: 2px solid #ecf0f1; cursor: pointer; }
+        .route-card.active { border-color: #3498db; background: #f8f9fa; }
+        .route-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .route-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .metric { display: flex; flex-direction: column; }
+        .metric-label { font-size: 11px; color: #7f8c8d; }
+        .metric-value { font-size: 14px; font-weight: bold; color: #2c3e50; }
+        .aqi-good { background: #d5f4e6; color: #27ae60; padding: 2px 6px; border-radius: 4px; }
+        .aqi-moderate { background: #fef9e7; color: #f39c12; padding: 2px 6px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="map-wrapper">
+            <div id="map"></div>
+            <div class="map-controls">
+                <button class="control-btn" onclick="clearAll()">Clear</button>
+                <button class="control-btn" onclick="centerMap()">Center</button>
+            </div>
+        </div>
+        <div class="control-panel">
+            <div class="panel-section">
+                <h3>Route Planning</h3>
+                <div class="route-inputs">
+                    <div class="input-group">
+                        <label>Start Location</label>
+                        <input type="text" id="startInput" placeholder="Click map to set">
+                    </div>
+                    <div class="input-group">
+                        <label>End Location</label>
+                        <input type="text" id="endInput" placeholder="Click map to set">
+                    </div>
+                    <button class="btn btn-primary" onclick="calculateRoutes()">Calculate Routes</button>
+                </div>
+            </div>
+            <div class="panel-section">
+                <h3>Available Routes</h3>
+                <div id="routeCardsContainer">
+                    <p style="color:#7f8c8d">Click map to set start/end points</p>
+                </div>
+            </div>
+            <div class="panel-section">
+                <h3>System Status</h3>
+                <div class="status-list">
+                    <div class="status-item">
+                        <span>Backend:</span>
+                        <span class="status-value" id="backendStatus">Checking...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay" style="display:none;">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p>Calculating routes...</p>
+        </div>
+    </div>
+
+    <div class="error-toast" id="errorToast">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span id="errorMessage"></span>
+        <button onclick="hideError()">×</button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        // Simple API class
+        class SimpleAPI {
+            constructor() {
+                this.baseURL = 'http://localhost:5002';
+                this.timeout = 60000;
+            }
+
+            async request(endpoint) {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), this.timeout);
+
+                try {
+                    const response = await fetch(`${this.baseURL}${endpoint}`, {
+                        signal: controller.signal,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    clearTimeout(timer);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    return await response.json();
+                } catch (error) {
+                    clearTimeout(timer);
+                    if (error.name === 'AbortError') throw new Error('Request timed out');
+                    throw error;
+                }
+            }
+
+            async getMultiRoutes(startLat, startLon, endLat, endLon) {
+                const params = new URLSearchParams({
+                    start_lat: startLat,
+                    start_lon: startLon,
+                    end_lat: endLat,
+                    end_lon: endLon
+                });
+                return this.request(`/routes/multi?${params}`);
+            }
+        }
+
+        // Simple Map class
+        class SimpleMap {
+            constructor() {
+                this.map = L.map('map').fitBounds([[22.505, 88.296], [22.640, 88.431]]);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.map);
+                this.startMarker = null;
+                this.endMarker = null;
+                this.routes = [];
+                this.colors = ['#2ecc71', '#e74c3c', '#9b59b6', '#f39c12', '#1abc9c'];
+                
+                this.map.on('click', (e) => this.handleClick(e.latlng.lat, e.latlng.lng));
+            }
+
+            handleClick(lat, lon) {
+                if (!this.startMarker) {
+                    this.setStartMarker(lat, lon);
+                    document.getElementById('startInput').value = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+                } else if (!this.endMarker) {
+                    this.setEndMarker(lat, lon);
+                    document.getElementById('endInput').value = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+                } else {
+                    this.clearAll();
+                    this.setStartMarker(lat, lon);
+                    document.getElementById('startInput').value = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+                }
+            }
+
+            setStartMarker(lat, lon) {
+                if (this.startMarker) this.map.removeLayer(this.startMarker);
+                this.startMarker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        html: '<div style="background:#2ecc71;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
+                        iconSize: [22, 22], iconAnchor: [11, 11]
+                    })
+                }).addTo(this.map).bindPopup('Start');
+            }
+
+            setEndMarker(lat, lon) {
+                if (this.endMarker) this.map.removeLayer(this.endMarker);
+                this.endMarker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        html: '<div style="background:#e74c3c;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
+                        iconSize: [22, 22], iconAnchor: [11, 11]
+                    })
+                }).addTo(this.map).bindPopup('End');
+            }
+
+            drawRoutes(routes) {
+                this.clearRoutes();
+                routes.forEach((route, index) => {
+                    if (!route.coordinates || !Array.isArray(route.coordinates)) {
+                        console.error('Invalid route coordinates:', route);
+                        return;
+                    }
+
+                    const coords = route.coordinates.map(c => [c[0], c[1]]);
+                    const color = this.colors[index % this.colors.length];
+                    const label = index === 0 ? 'Cleanest' : index === 1 ? 'Fastest' : `Alternative ${index}`;
+
+                    const polyline = L.polyline(coords, {
+                        color: color,
+                        weight: index === 0 ? 6 : 4,
+                        opacity: index === 0 ? 1.0 : 0.7
+                    }).addTo(this.map);
+
+                    if (route.analysis) {
+                        const a = route.analysis;
+                        polyline.bindPopup(`
+                            <div style="font-family:sans-serif">
+                                <strong style="color:${color}">${label}</strong><br>
+                                Distance: ${a.total_distance_km} km<br>
+                                Time: ${a.total_travel_time_min} min<br>
+                                AQI: ${a.average_aqi}
+                            </div>
+                        `);
+                    }
+
+                    this.routes.push(polyline);
+                });
+                this.fitAllRoutes();
+            }
+
+            highlightRoute(index) {
+                this.routes.forEach((route, i) => {
+                    route.setStyle({
+                        weight: i === index ? 8 : 3,
+                        opacity: i === index ? 1.0 : 0.3
+                    });
+                });
+            }
+
+            fitAllRoutes() {
+                const bounds = L.latLngBounds();
+                if (this.startMarker) bounds.extend(this.startMarker.getLatLng());
+                if (this.endMarker) bounds.extend(this.endMarker.getLatLng());
+                this.routes.forEach(route => bounds.extend(route.getBounds()));
+                if (bounds.isValid()) this.map.fitBounds(bounds, { padding: [50, 50] });
+            }
+
+            clearRoutes() {
+                this.routes.forEach(route => this.map.removeLayer(route));
+                this.routes = [];
+            }
+
+            clearAll() {
+                this.clearRoutes();
+                if (this.startMarker) { this.map.removeLayer(this.startMarker); this.startMarker = null; }
+                if (this.endMarker) { this.map.removeLayer(this.endMarker); this.endMarker = null; }
+            }
+
+            centerMap() {
+                this.map.fitBounds([[22.505, 88.296], [22.640, 88.431]]);
+            }
+        }
+
+        // Main app
+        const api = new SimpleAPI();
+        const map = new SimpleMap();
+        let currentRoutes = null;
+
+        async function calculateRoutes() {
+            if (!map.startMarker || !map.endMarker) {
+                showError('Set start and end points first');
+                return;
+            }
+
+            const startLat = map.startMarker.getLatLng().lat;
+            const startLon = map.startMarker.getLatLng().lng;
+            const endLat = map.endMarker.getLatLng().lat;
+            const endLon = map.endMarker.getLatLng().lng;
+
+            showLoading(true);
+
+            try {
+                const data = await api.getMultiRoutes(startLat, startLon, endLat, endLon);
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                if (!data.routes || !Array.isArray(data.routes)) {
+                    throw new Error('Invalid response: no routes array');
+                }
+
+                currentRoutes = data.routes;
+                map.drawRoutes(data.routes);
+                renderRouteCards(data.routes);
+
+            } catch (error) {
+                showError(`Failed: ${error.message}`);
+                console.error('Error:', error);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderRouteCards(routes) {
+            const container = document.getElementById('routeCardsContainer');
+            const labels = ['Cleanest', 'Fastest', 'Alternative 1', 'Alternative 2', 'Alternative 3'];
+            const colors = ['#2ecc71', '#e74c3c', '#9b59b6', '#f39c12', '#1abc9c'];
+
+            container.innerHTML = routes.map((route, i) => {
+                if (!route.analysis) return '';
+                
+                const a = route.analysis;
+                const aqiClass = a.average_aqi <= 50 ? 'aqi-good' : 'aqi-moderate';
+
+                return `
+                    <div class="route-card" onclick="selectRoute(${i})">
+                        <div class="route-header">
+                            <div style="display:flex;align-items:center;gap:8px">
+                                <div style="width:12px;height:12px;border-radius:50%;background:${colors[i % colors.length]}"></div>
+                                <strong>${labels[i]}</strong>
+                            </div>
+                            <span style="background:${colors[i % colors.length]};color:white;padding:2px 8px;border-radius:12px;font-size:12px">#${i+1}</span>
+                        </div>
+                        <div class="route-metrics">
+                            <div class="metric">
+                                <span class="metric-label">Distance</span>
+                                <span class="metric-value">${a.total_distance_km} km</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Time</span>
+                                <span class="metric-value">${a.total_travel_time_min} min</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Avg AQI</span>
+                                <span class="metric-value ${aqiClass}">${a.average_aqi}</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">AQI Range</span>
+                                <span class="metric-value">${a.min_aqi} - ${a.max_aqi}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectRoute(index) {
+            document.querySelectorAll('.route-card').forEach(card => card.classList.remove('active'));
+            document.querySelectorAll('.route-card')[index]?.classList.add('active');
+            map.highlightRoute(index);
+        }
+
+        function clearAll() {
+            map.clearAll();
+            document.getElementById('startInput').value = '';
+            document.getElementById('endInput').value = '';
+            document.getElementById('routeCardsContainer').innerHTML = '<p style="color:#7f8c8d">Click map to set start/end points</p>';
+        }
+
+        function centerMap() {
+            map.centerMap();
+        }
+
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorToast').classList.add('show');
+            setTimeout(() => hideError(), 5000);
+        }
+
+        function hideError() {
+            document.getElementById('errorToast').classList.remove('show');
+        }
+
+        // Check backend status
+        async function checkStatus() {
+            try {
+                await api.request('/');
+                document.getElementById('backendStatus').textContent = 'Online';
+                document.getElementById('backendStatus').style.color = '#27ae60';
+            } catch (error) {
+                document.getElementById('backendStatus').textContent = 'Offline';
+                document.getElementById('backendStatus').style.color = '#e74c3c';
+            }
+        }
+
+        // Initialize
+        checkStatus();
+    </script>
+</body>
+</html>

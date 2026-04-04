@@ -1,0 +1,221 @@
+/* Enhanced Route Styles */
+
+.route-tooltip {
+    background: rgba(0, 0, 0, 0.8) !important;
+    border: none !important;
+    border-radius: 4px !important;
+    color: white !important;
+    font-size: 12px !important;
+    font-weight: bold !important;
+    padding: 4px 8px !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+.route-popup {
+    min-width: 200px;
+}
+
+.route-popup h4 {
+    margin: 0 0 8px 0;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.route-stats {
+    font-size: 13px;
+}
+
+.route-stats p {
+    margin: 4px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.route-stats strong {
+    color: #34495e;
+}
+
+/* Enhanced route cards */
+.route-card {
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.route-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.route-card.active {
+    border-color: #3498db;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.route-card.fast.active {
+    border-color: #e74c3c;
+}
+
+.route-card.clean.active {
+    border-color: #2ecc71;
+}
+
+/* Enhanced comparison metrics */
+.trade-off-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid #ecf0f1;
+    transition: background-color 0.2s ease;
+}
+
+.trade-off-item:hover {
+    background-color: #f8f9fa;
+    padding-left: 8px;
+    padding-right: 8px;
+    margin: 0 -8px;
+    border-radius: 4px;
+}
+
+.trade-off-item:last-child {
+    border-bottom: none;
+}
+
+.trade-off-item span:first-child {
+    font-weight: 500;
+    color: #34495e;
+}
+
+.trade-off-item span:last-child {
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+/* Positive indicators */
+.trade-off-item span:last-child:not([id*="extraDistance"]) {
+    color: #27ae60;
+}
+
+/* Negative indicators */
+.trade-off-item span:last-child[id*="extraDistance"]:not(:empty) {
+    color: #e74c3c;
+}
+
+/* Loading and status enhancements */
+.status-value {
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #ecf0f1;
+}
+
+.status-value:contains("Google Live") {
+    background: #d5f4e6;
+    color: #27ae60;
+}
+
+/* Enhanced button states */
+.btn {
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Route animation */
+@keyframes routeDraw {
+    from {
+        stroke-dashoffset: 1000;
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.leaflet-interactive {
+    stroke-dasharray: 1000;
+    animation: routeDraw 2s ease-in-out;
+}
+
+/* Enhanced popup styles */
+.leaflet-popup-content-wrapper {
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.leaflet-popup-content {
+    margin: 12px 16px !important;
+}
+
+/* Sample point indicators */
+.sample-point-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3498db;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Cache stats display */
+.cache-stats {
+    font-size: 11px;
+    color: #7f8c8d;
+    margin-top: 8px;
+    padding: 4px 8px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+/* Route legend styling */
+.legend-route {
+    display: inline-block;
+    width: 16px;
+    height: 3px;
+    margin-right: 8px;
+    border-radius: 2px;
+}
+
+/* Header Navigation */
+.header-nav {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.nav-link:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.nav-link.active {
+    background: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.nav-link i {
+    font-size: 0.8rem;
+}
