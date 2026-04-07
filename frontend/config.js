@@ -5,7 +5,7 @@ const CONFIG = {
         environment: 'Development'
     },
     production: {
-        apiBaseUrl: 'https://your-backend-url.railway.app', // Replace with your Railway URL
+        apiBaseUrl: 'https://kolkata-clean-air-route.onrender.com',
         environment: 'Production'
     }
 };
