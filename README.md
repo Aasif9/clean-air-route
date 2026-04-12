@@ -61,7 +61,4 @@ The system provides:
 - AQI improvement metrics
 - Distance/time trade-offs
 
-## Next Steps
 
-Replace dummy data with real CPCB/WAQI API data when available.
-# clean-air-route
