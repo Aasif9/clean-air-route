@@ -58,6 +58,28 @@ def get_stations():
 def test_system():
     """Test system with sample Kolkata coordinates"""
     return get_multi_routes()
+    
+@app.route('/test-coords')
+def test_with_coords():
+    """Test with hardcoded Kolkata coordinates"""
+    try:
+        start_lat = 22.5726
+        start_lon = 88.3639
+        end_lat = 22.5958
+        end_lon = 88.3697
+        
+        print(f"[Test] Using hardcoded coordinates: ({start_lat:.4f}, {start_lon:.4f}) → ({end_lat:.4f}, {end_lon:.4f})")
+        
+        result = find_multi_routes(start_lat, start_lon, end_lat, end_lon)
+        
+        if "error" in result:
+            print(f"[Test] Error: {result['error']}")
+            return jsonify({'error': result["error"]}), 404
+        
+        return jsonify(result)
+    except Exception as e:
+        print(f"[Test] Exception: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5002))

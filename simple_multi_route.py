@@ -2,7 +2,10 @@ import os
 import math
 import requests
 import polyline
+from dotenv import load_dotenv
 from aqi_cache import AQICache
+
+load_dotenv()
 
 ROUTES_API_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
 AQI_API_URL = "https://airquality.googleapis.com/v1/currentConditions:lookup"
@@ -140,23 +143,10 @@ def find_multi_routes(origin_lat, origin_lon, dest_lat, dest_lon):
     if not routes:
         return {"error": "No routes found"}
     
-    # Ensure we have at least 3 routes by creating variations if needed
-    while len(routes) < 3:
-        print(f"[Routes] Only {len(routes)} routes found, creating variation...")
-        base_route = routes[0].copy()
-        # Create a slight variation by modifying the exposure score
-        base_route["route_id"] = len(routes)
-        routes.append(base_route)
-    
-    # Analyze all routes
+    # Analyze all routes (no synthetic duplication)
     analyzed_routes = []
     for route in routes:
         analysis = _analyze_route(route["encoded_polyline"])
-        # Add slight variation to exposure scores for alternative routes
-        if route["route_id"] > 0:
-            analysis["avg_aqi"] += route["route_id"] * 2  # Slight AQI variation
-            analysis["min_aqi"] += route["route_id"] * 1
-            analysis["max_aqi"] += route["route_id"] * 3
         
         exposure_score = route["duration_seconds"] * (1.05 ** analysis["avg_aqi"])
         
