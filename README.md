@@ -1,6 +1,6 @@
 # Kolkata AQI Clean Route Backend
 
-A backend system for finding pollution-aware routes in Kolkata using dummy AQI data.
+A backend system for finding pollution-aware routes in Kolkata using real time AQI data.
 
 ## Features
 
