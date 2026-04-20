@@ -1,0 +1,93 @@
+{
+  "sequence_length": 24,
+  "prediction_horizon": 4,
+  "test_size": 0.2,
+  "val_size": 0.2,
+  "data_path": "data/aqi_data.db",
+  "model_path": "models/lstm_aqi_model",
+  "results_path": "results",
+  "min_data_points": 1000,
+  "locations": [
+    {
+      "name": "Central_Kolkata",
+      "lat": 22.5726,
+      "lon": 88.3639,
+      "description": "Central business district"
+    },
+    {
+      "name": "Salt_Lake",
+      "lat": 22.5958,
+      "lon": 88.3697,
+      "description": "IT hub and residential area"
+    },
+    {
+      "name": "Alipore",
+      "lat": 22.5411,
+      "lon": 88.3407,
+      "description": "Residential and commercial area"
+    },
+    {
+      "name": "Sealdah",
+      "lat": 22.5853,
+      "lon": 88.3696,
+      "description": "Major railway junction"
+    },
+    {
+      "name": "Howrah",
+      "lat": 22.6139,
+      "lon": 88.4016,
+      "description": "Industrial and residential area"
+    },
+    {
+      "name": "Behala",
+      "lat": 22.5186,
+      "lon": 88.3525,
+      "description": "Southern residential area"
+    },
+    {
+      "name": "Shibpur",
+      "lat": 22.6084,
+      "lon": 88.3949,
+      "description": "Educational and residential area"
+    },
+    {
+      "name": "Garia",
+      "lat": 22.5975,
+      "lon": 88.4149,
+      "description": "Southern suburban area"
+    },
+    {
+      "name": "Tollygunge",
+      "lat": 22.5274,
+      "lon": 88.3295,
+      "description": "Entertainment and residential area"
+    },
+    {
+      "name": "Dumdum",
+      "lat": 22.6156,
+      "lon": 88.3954,
+      "description": "Airport and northern area"
+    }
+  ],
+  "model_parameters": {
+    "lstm_units": [128, 64, 32],
+    "dropout_rate": 0.2,
+    "learning_rate": 0.001,
+    "batch_size": 32,
+    "epochs": 100,
+    "early_stopping_patience": 15,
+    "lr_reduction_patience": 7
+  },
+  "data_collection": {
+    "collection_interval_minutes": 60,
+    "max_api_calls_per_hour": 100,
+    "retry_attempts": 3,
+    "timeout_seconds": 10
+  },
+  "prediction_settings": {
+    "default_horizons": [1, 4, 24],
+    "confidence_threshold": 0.7,
+    "cache_ttl_seconds": 3600,
+    "min_confidence_for_routing": 0.5
+  }
+}
