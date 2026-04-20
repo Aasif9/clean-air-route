@@ -19,6 +19,9 @@
     <!-- Configuration -->
     <script src="/config.js"></script>
     
+    <!-- Supabase Client -->
+    <script src="/js/supabase.js"></script>
+    
     <style>
         .route-cards-container {
             display: flex;
@@ -106,6 +109,46 @@
         .route-select-btn {
             width: 100%;
             margin-top: 8px;
+        }
+        
+        .history-container {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .history-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .history-item h4 {
+            margin: 0 0 8px 0;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        
+        .history-item p {
+            margin: 4px 0;
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        
+        .history-item button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        
+        .history-item button:hover {
+            background: #2980b9;
         }
     </style>
 </head>
@@ -448,7 +491,10 @@
             }
 
             setupEventListeners() {
-                document.getElementById('calculateBtn').addEventListener('click', () => this.calculateRoutes());
+                document.getElementById('calculateBtn').addEventListener('click', () => {
+    console.log('[UI] Calculate button clicked!');
+            this.calculateRoutes();
+        });
                 document.getElementById('clearBtn').addEventListener('click', () => this.clearAll());
                 
                 const centerBtn = document.getElementById('centerBtn');
@@ -472,7 +518,21 @@
                 this.setLoading(true, 'Fetching routes and AQI data from Google...');
 
                 try {
-                    const data = await this.api.getMultiRoutes(startLat, startLon, endLat, endLon);
+                    // Get user ID for route saving - ensure we always have a valid user ID
+                    let userId;
+                    if (window.historyManager) {
+                        userId = window.historyManager.getUserId();
+                    } else {
+                        // Fallback: generate or get user ID from localStorage
+                        userId = localStorage.getItem('clean_air_user_id');
+                        if (!userId) {
+                            userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                            localStorage.setItem('clean_air_user_id', userId);
+                        }
+                    }
+                    console.log('[UI] Calculating routes with user ID:', userId);
+                    
+                    const data = await this.api.getMultiRoutes(startLat, startLon, endLat, endLon, userId);
                     
                     if (data.error) {
                         throw new Error(data.error);
@@ -491,6 +551,14 @@
                     this.renderRouteCards(data.routes);
 
                     console.log(`✅ Successfully loaded ${data.routes.length} routes`);
+                    
+                    // Refresh route history after calculation
+                    setTimeout(() => {
+                        console.log('[UI] Refreshing route history...');
+                        if (window.historyManager) {
+                            window.historyManager.loadRouteHistory();
+                        }
+                    }, 1000);
 
                 } catch (error) {
                     this.showError(`Route calculation failed: ${error.message}`);

@@ -211,22 +211,35 @@ class AQIRouteApp {
         }
         
         const pollutionFactor = parseFloat(document.getElementById('pollutionSlider').value);
+        const userId = historyManager.getUserId();
+        
+        console.log('[UI] Calculating routes with user ID:', userId);
+        console.log('[UI] Start point:', this.startPoint);
+        console.log('[UI] End point:', this.endPoint);
         
         Utils.setLoading(true);
         
         try {
-            const data = await this.api.getCleanRoute(
+            const data = await this.api.getMultiRoutes(
                 this.startPoint.lat,
                 this.startPoint.lon,
                 this.endPoint.lat,
                 this.endPoint.lon,
-                pollutionFactor
+                userId
             );
             
+            console.log('[UI] Route calculation successful:', data);
             this.currentRoutes = data;
             this.displayRoutes(data);
             
+            // Refresh route history after calculation
+            setTimeout(() => {
+                console.log('[UI] Refreshing route history...');
+                historyManager.loadRouteHistory();
+            }, 1000);
+            
         } catch (error) {
+            console.error('[UI] Route calculation failed:', error);
             Utils.showError(error.message);
         } finally {
             Utils.setLoading(false);
@@ -366,7 +379,86 @@ class AQIRouteApp {
     }
 }
  
+// Add this to your existing app.js initialization
+class RouteHistoryManager {
+    constructor() {
+        this.currentUserId = this.getUserId();
+        this.routeHistory = [];
+    }
+ 
+    getUserId() {
+        // For now, use a simple user ID from localStorage
+        let userId = localStorage.getItem('clean_air_user_id');
+        if (!userId) {
+            userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('clean_air_user_id', userId);
+        }
+        return userId;
+    }
+ 
+    async loadRouteHistory() {
+        try {
+            this.routeHistory = await window.supabaseClient.getRouteHistory(this.currentUserId);
+            this.displayRouteHistory();
+        } catch (error) {
+            console.error('Failed to load route history:', error);
+        }
+    }
+ 
+    displayRouteHistory() {
+        const historyContainer = document.getElementById('routeHistory');
+        if (!historyContainer) return;
+ 
+        if (this.routeHistory.length === 0) {
+            historyContainer.innerHTML = '<p>No routes saved yet</p>';
+            return;
+        }
+ 
+        const historyHTML = this.routeHistory.map(route => `
+            <div class="history-item">
+                <h4>Route: ${route.route_type}</h4>
+                <p>Distance: ${route.total_distance_km} km</p>
+                <p>Avg AQI: ${route.average_aqi}</p>
+                <p>Time: ${route.total_time_min} min</p>
+                <p>Date: ${new Date(route.created_at).toLocaleString()}</p>
+                <button onclick="historyManager.loadRouteOnMap(${JSON.stringify(route).replace(/"/g, '&quot;')})">
+                    Load on Map
+                </button>
+            </div>
+        `).join('');
+ 
+        historyContainer.innerHTML = historyHTML;
+    }
+ 
+    loadRouteOnMap(route) {
+        // Load route coordinates on the map
+        if (window.aqiMap && route.coordinates) {
+            const coordinates = JSON.parse(route.coordinates);
+            window.aqiMap.displayRoute(coordinates, route.route_type);
+        }
+    }
+}
+ 
+// Initialize route history manager
+const historyManager = new RouteHistoryManager();
+ 
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new AQIRouteApp();
+    
+    // Load route history
+    historyManager.loadRouteHistory();
+    
+    // Add route history section to your UI if not exists
+    if (!document.getElementById('routeHistory')) {
+        const panelSection = document.createElement('div');
+        panelSection.className = 'panel-section';
+        panelSection.innerHTML = `
+            <h3><i class="fas fa-history"></i> Route History</h3>
+            <div id="routeHistory" class="history-container">
+                <p>Loading route history...</p>
+            </div>
+        `;
+        document.querySelector('.side-panel').appendChild(panelSection);
+    }
 });

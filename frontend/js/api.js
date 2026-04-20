@@ -43,14 +43,20 @@ class AQIAPI {
         }
     }
 
-    async getMultiRoutes(startLat, startLon, endLat, endLon) {
+    async getMultiRoutes(startLat, startLon, endLat, endLon, userId = null) {
         const params = new URLSearchParams({
             start_lat: startLat,
             start_lon: startLon,
             end_lat: endLat,
             end_lon: endLon
         });
-        return this.request(`/routes/multi?${params}`);
+        if (userId) {
+            params.append('user_id', userId);
+        }
+        const url = `/routes/multi?${params}`;
+        console.log('[API] Calling backend URL:', this.baseURL + url);
+        console.log('[API] With params:', params.toString());
+        return this.request(url);
     }
 
     async getCleanRoute(startLat, startLon, endLat, endLon, pollutionFactor = 2.0) {
@@ -87,5 +93,35 @@ class AQIAPI {
     }
 }
  
+// Update your existing calculateRoute function
+async function calculateRoute(startLat, startLon, endLat, endLon) {
+    const userId = historyManager.getUserId();
+    
+    const url = `${window.APP_CONFIG.apiBaseUrl}/routes/multi?` +
+                `start_lat=${startLat}&start_lon=${startLon}&` +
+                `end_lat=${endLat}&end_lon=${endLon}&` +
+                `user_id=${userId}`;
+    
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        // Refresh route history after calculation
+        setTimeout(() => {
+            historyManager.loadRouteHistory();
+        }, 1000);
+        
+        return data;
+    } catch (error) {
+        console.error('Route calculation failed:', error);
+        throw error;
+    }
+}
+
 // Export for use in other modules
 window.AQIAPI = AQIAPI;
+window.calculateRoute = calculateRoute;
