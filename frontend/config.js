@@ -13,12 +13,12 @@ const CONFIG = {
 // Supabase configuration
 const SUPABASE_CONFIG = {
     development: {
-        url: 'YOUR_SUPABASE_URL',
-        anonKey: 'YOUR_SUPABASE_ANON_KEY'
+        url: 'https://bnlcnefcjngoapdcijer.supabase.co',
+        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJubGNuZWZjam5nb2FwZGNpamVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzMzYzMDQsImV4cCI6MjA5MTkxMjMwNH0.wvUyDePWbUvGvksin82JhVIxbDXUuV1Y4O0N2FvwpCQ'
     },
     production: {
         url: 'https://bnlcnefcjngoapdcijer.supabase.co',
-        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJubGNuZWZjam5nb2FwZGNpamVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzMzYzMDQsImV4cCI6MjA5MTkxMjMwNH0.wvUyDePWbUvGvksin82JhVIxbDXUuV1Y4O0N2FvwpCQ' // Replace with your actual key
+        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJubGNuZWZjam5nb2FwZGNpamVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzMzYzMDQsImV4cCI6MjA5MTkxMjMwNH0.wvUyDePWbUvGvksin82JhVIxbDXUuV1Y4O0N2FvwpCQ'
     }
 };
 

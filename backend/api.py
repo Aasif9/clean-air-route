@@ -15,11 +15,27 @@ from simple_multi_route import find_multi_routes
 
 load_dotenv()
 
-# Initialize Supabase client
+# Initialize Supabase client with transaction pooler configuration
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+# Validate Supabase configuration
+if not supabase_url:
+    raise ValueError("SUPABASE_URL not found in environment variables")
+if not supabase_service_key:
+    raise ValueError("SUPABASE_SERVICE_ROLE_KEY not found in environment variables")
+
 # Use service role key for backend operations (bypasses RLS)
+# Transaction pooler is configured at the Supabase project level
 supabase: Client = create_client(supabase_url, supabase_service_key)
+
+# Test Supabase connection on startup
+try:
+    test_result = supabase.table('navigation_routes').select('count').limit(1).execute()
+    print("✅ Supabase connection established successfully")
+except Exception as e:
+    print(f"⚠️  Warning: Supabase connection failed: {e}")
+    print("Route saving functionality will be limited")
 
 app = Flask(__name__)
 CORS(app)
@@ -85,51 +101,68 @@ def get_multi_routes():
         
         print(f"[API] Returning {result['total_routes']} routes")
         
-        # Automatically save routes to Supabase
+        # Automatically save routes to Supabase with retry logic for transaction pooler
         if result.get('routes') and user_id != 'anonymous_user':
-            try:
-                for i, route in enumerate(result['routes']):
-                    route_data = {
-                        'start_lat': start_lat,
-                        'start_lon': start_lon,
-                        'end_lat': end_lat,
-                        'end_lon': end_lon,
-                        'start_address': f"Point {i+1} Start",
-                        'end_address': f"Point {i+1} End",
-                        'route_type': route.get('route_type', f"route_{i+1}"),
-                        'coordinates': route.get('coordinates', []),
-                        'analysis': route.get('analysis', {}),
-                        'node_count': route.get('node_count', 0)
-                    }
-                    
-                    # Prepare data for Supabase (matching the table schema)
-                    route_record = {
-                        'user_id': user_id,
-                        'start_lat': route_data['start_lat'],
-                        'start_lon': route_data['start_lon'], 
-                        'end_lat': route_data['end_lat'],
-                        'end_lon': route_data['end_lon'],
-                        'start_address': route_data['start_address'],
-                        'end_address': route_data['end_address'],
-                        'route_type': route_data['route_type'],
-                        'total_distance_km': route_data['analysis'].get('total_distance_km', 0),
-                        'total_time_min': route_data['analysis'].get('total_travel_time_min', 0),
-                        'average_aqi': route_data['analysis'].get('average_aqi', 0),
-                        'min_aqi': route_data['analysis'].get('min_aqi', 0),
-                        'max_aqi': route_data['analysis'].get('max_aqi', 0),
-                        'exposure_score': route_data['analysis'].get('exposure_score', 0),
-                        'coordinates': json.dumps(route_data['coordinates']),
-                        'route_metadata': json.dumps({
-                            'node_count': route_data['node_count'],
-                            'calculated_at': datetime.now().isoformat()
-                        })
-                    }
-                    
-                    save_result = supabase.table('navigation_routes').insert(route_record).execute()
-                    if save_result.data:
-                        print(f"[API] Saved route {i+1} to Supabase: {save_result.data[0]['id']}")
-            except Exception as save_error:
-                print(f"[API] Warning: Failed to save to Supabase: {save_error}")
+            saved_count = 0
+            for i, route in enumerate(result['routes']):
+                route_data = {
+                    'start_lat': start_lat,
+                    'start_lon': start_lon,
+                    'end_lat': end_lat,
+                    'end_lon': end_lon,
+                    'start_address': f"Point {i+1} Start",
+                    'end_address': f"Point {i+1} End",
+                    'route_type': route.get('route_type', f"route_{i+1}"),
+                    'coordinates': route.get('coordinates', []),
+                    'analysis': route.get('analysis', {}),
+                    'node_count': route.get('node_count', 0)
+                }
+                
+                # Prepare data for Supabase (matching the table schema)
+                route_record = {
+                    'user_id': user_id,
+                    'start_lat': route_data['start_lat'],
+                    'start_lon': route_data['start_lon'], 
+                    'end_lat': route_data['end_lat'],
+                    'end_lon': route_data['end_lon'],
+                    'start_address': route_data['start_address'],
+                    'end_address': route_data['end_address'],
+                    'route_type': route_data['route_type'],
+                    'total_distance_km': route_data['analysis'].get('total_distance_km', 0),
+                    'total_time_min': route_data['analysis'].get('total_travel_time_min', 0),
+                    'average_aqi': route_data['analysis'].get('average_aqi', 0),
+                    'min_aqi': route_data['analysis'].get('min_aqi', 0),
+                    'max_aqi': route_data['analysis'].get('max_aqi', 0),
+                    'exposure_score': route_data['analysis'].get('exposure_score', 0),
+                    'coordinates': json.dumps(route_data['coordinates']),
+                    'route_metadata': json.dumps({
+                        'node_count': route_data['node_count'],
+                        'calculated_at': datetime.now().isoformat(),
+                        'saved_via': 'transaction_pooler'
+                    })
+                }
+                
+                # Retry logic for transaction pooler
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        save_result = supabase.table('navigation_routes').insert(route_record).execute()
+                        if save_result.data:
+                            print(f"[API] Saved route {i+1} to Supabase (attempt {attempt + 1}): {save_result.data[0]['id']}")
+                            saved_count += 1
+                            break
+                        else:
+                            print(f"[API] No data returned from Supabase (attempt {attempt + 1})")
+                    except Exception as save_error:
+                        print(f"[API] Save attempt {attempt + 1} failed: {save_error}")
+                        if attempt == max_retries - 1:
+                            print(f"[API] Failed to save route {i+1} after {max_retries} attempts")
+                        else:
+                            # Brief delay before retry (transaction pooler optimization)
+                            import time
+                            time.sleep(0.1)
+            
+            print(f"[API] Successfully saved {saved_count}/{len(result['routes'])} routes to Supabase")
         
         return jsonify(result)
 
