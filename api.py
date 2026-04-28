@@ -7,7 +7,9 @@ import uuid
 from psycopg2.extras import RealDictCursor
 
 # Add backend directory to path for imports
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+backend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backend')
+if os.path.exists(backend_path):
+    sys.path.append(backend_path)
 
 from enhanced_aqi_service import find_best_routes as google_find_best_routes
 from simple_multi_route import find_multi_routes
