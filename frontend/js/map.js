@@ -20,6 +20,10 @@ class AQIMap {
             [22.640, 88.431]   // Northeast
         ];
         
+        // Kolkata center and 15km radius for region highlighting
+        this.kolkataCenter = [22.5726, 88.3639];
+        this.kolkataRadiusKm = 15;
+        
         this.init();
     }
  
@@ -32,6 +36,9 @@ class AQIMap {
             attribution: '© OpenStreetMap contributors',
             maxZoom: 18
         }).addTo(this.map);
+        
+        // Add region overlay (grey mask outside 50km radius)
+        this.addRegionOverlay();
         
         // Add click handler
         this.map.on('click', (e) => this.handleMapClick(e));
@@ -47,6 +54,66 @@ class AQIMap {
             detail: { lat, lon: lng }
         });
         document.dispatchEvent(mapClickEvent);
+    }
+
+    addRegionOverlay() {
+        // Create a large polygon that covers the world with a hole for the Kolkata region
+        const center = this.kolkataCenter;
+        const radiusKm = this.kolkataRadiusKm;
+        
+        // Convert km to degrees (approximate)
+        const radiusDeg = radiusKm / 111; // 1 degree ≈ 111 km
+        
+        // Create circle coordinates for the hole
+        const holeCoords = [];
+        const segments = 64;
+        for (let i = 0; i <= segments; i++) {
+            const angle = (i / segments) * 2 * Math.PI;
+            const lat = center[0] + radiusDeg * Math.cos(angle);
+            const lon = center[1] + radiusDeg * Math.sin(angle) / Math.cos(center[0] * Math.PI / 180);
+            holeCoords.push([lon, lat]);
+        }
+        
+        // Create outer boundary (large rectangle covering most of the visible area)
+        const outerCoords = [
+            [-180, 90],    // Top-left
+            [180, 90],     // Top-right
+            [180, -90],    // Bottom-right
+            [-180, -90],   // Bottom-left
+            [-180, 90]     // Close the polygon
+        ];
+        
+        // Create GeoJSON polygon with hole
+        const geoJson = {
+            "type": "Feature",
+            "properties": {},
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [outerCoords, holeCoords]
+            }
+        };
+        
+        // Add the overlay layer
+        L.geoJSON(geoJson, {
+            style: {
+                color: 'transparent',
+                fillColor: '#808080',
+                fillOpacity: 0.5,
+                weight: 0
+            }
+        }).addTo(this.map);
+        
+        // Add a subtle circle boundary to show the 50km limit
+        L.circle(center, {
+            radius: radiusKm * 1000, // Convert to meters
+            color: '#4a90a4',
+            fillColor: 'transparent',
+            fillOpacity: 0,
+            weight: 2,
+            dashArray: '10, 5'
+        }).addTo(this.map);
+        
+        console.log('Region overlay added for 50km radius around Kolkata');
     }
  
     addStartMarker(lat, lon) {

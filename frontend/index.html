@@ -19,9 +19,6 @@
     <!-- Configuration -->
     <script src="/config.js"></script>
     
-    <!-- Supabase Client -->
-    <script src="/js/supabase.js"></script>
-    
     <style>
         .route-cards-container {
             display: flex;
@@ -109,46 +106,6 @@
         .route-select-btn {
             width: 100%;
             margin-top: 8px;
-        }
-        
-        .history-container {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        
-        .history-item {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 8px;
-        }
-        
-        .history-item h4 {
-            margin: 0 0 8px 0;
-            color: #2c3e50;
-            font-size: 14px;
-        }
-        
-        .history-item p {
-            margin: 4px 0;
-            font-size: 12px;
-            color: #7f8c8d;
-        }
-        
-        .history-item button {
-            background: #3498db;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            cursor: pointer;
-            margin-top: 8px;
-        }
-        
-        .history-item button:hover {
-            background: #2980b9;
         }
     </style>
 </head>
@@ -337,12 +294,80 @@
                     attribution: '© OpenStreetMap contributors',
                     maxZoom: 18
                 }).addTo(this.map);
+                
+                // Kolkata center and 15km radius for region highlighting
+                this.kolkataCenter = [22.5726, 88.3639];
+                this.kolkataRadiusKm = 15;
+                
+                // Add region overlay
+                this.addRegionOverlay();
+                
                 this.startMarker = null;
                 this.endMarker = null;
                 this.routes = [];
                 this.colors = ['#2ecc71', '#e74c3c', '#9b59b6', '#f39c12', '#1abc9c'];
                 
                 this.map.on('click', (e) => this.handleClick(e.latlng.lat, e.latlng.lng));
+            }
+
+            addRegionOverlay() {
+                // Create a large polygon that covers the world with a hole for the Kolkata region
+                const center = this.kolkataCenter;
+                const radiusKm = this.kolkataRadiusKm;
+                
+                // Convert km to degrees (approximate)
+                const radiusDeg = radiusKm / 111; // 1 degree ≈ 111 km
+                
+                // Create circle coordinates for the hole
+                const holeCoords = [];
+                const segments = 64;
+                for (let i = 0; i <= segments; i++) {
+                    const angle = (i / segments) * 2 * Math.PI;
+                    const lat = center[0] + radiusDeg * Math.cos(angle);
+                    const lon = center[1] + radiusDeg * Math.sin(angle) / Math.cos(center[0] * Math.PI / 180);
+                    holeCoords.push([lon, lat]);
+                }
+                
+                // Create outer boundary (large rectangle covering most of the visible area)
+                const outerCoords = [
+                    [-180, 90],    // Top-left
+                    [180, 90],     // Top-right
+                    [180, -90],    // Bottom-right
+                    [-180, -90],   // Bottom-left
+                    [-180, 90]     // Close the polygon
+                ];
+                
+                // Create GeoJSON polygon with hole
+                const geoJson = {
+                    "type": "Feature",
+                    "properties": {},
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [outerCoords, holeCoords]
+                    }
+                };
+                
+                // Add the overlay layer
+                L.geoJSON(geoJson, {
+                    style: {
+                        color: 'transparent',
+                        fillColor: '#808080',
+                        fillOpacity: 0.5,
+                        weight: 0
+                    }
+                }).addTo(this.map);
+                
+                // Add a subtle circle boundary to show the 50km limit
+                L.circle(center, {
+                    radius: radiusKm * 1000, // Convert to meters
+                    color: '#4a90a4',
+                    fillColor: 'transparent',
+                    fillOpacity: 0,
+                    weight: 2,
+                    dashArray: '10, 5'
+                }).addTo(this.map);
+                
+                console.log('Region overlay added for 50km radius around Kolkata');
             }
 
             handleClick(lat, lon) {
@@ -491,10 +516,7 @@
             }
 
             setupEventListeners() {
-                document.getElementById('calculateBtn').addEventListener('click', () => {
-    console.log('[UI] Calculate button clicked!');
-            this.calculateRoutes();
-        });
+                document.getElementById('calculateBtn').addEventListener('click', () => this.calculateRoutes());
                 document.getElementById('clearBtn').addEventListener('click', () => this.clearAll());
                 
                 const centerBtn = document.getElementById('centerBtn');
@@ -518,21 +540,7 @@
                 this.setLoading(true, 'Fetching routes and AQI data from Google...');
 
                 try {
-                    // Get user ID for route saving - ensure we always have a valid user ID
-                    let userId;
-                    if (window.historyManager) {
-                        userId = window.historyManager.getUserId();
-                    } else {
-                        // Fallback: generate or get user ID from localStorage
-                        userId = localStorage.getItem('clean_air_user_id');
-                        if (!userId) {
-                            userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                            localStorage.setItem('clean_air_user_id', userId);
-                        }
-                    }
-                    console.log('[UI] Calculating routes with user ID:', userId);
-                    
-                    const data = await this.api.getMultiRoutes(startLat, startLon, endLat, endLon, userId);
+                    const data = await this.api.getMultiRoutes(startLat, startLon, endLat, endLon);
                     
                     if (data.error) {
                         throw new Error(data.error);
@@ -551,14 +559,18 @@
                     this.renderRouteCards(data.routes);
 
                     console.log(`✅ Successfully loaded ${data.routes.length} routes`);
-                    
-                    // Refresh route history after calculation
-                    setTimeout(() => {
-                        console.log('[UI] Refreshing route history...');
-                        if (window.historyManager) {
-                            window.historyManager.loadRouteHistory();
+
+                    // Show fallback warning if applicable
+                    if (data.fallback_info) {
+                        const warning = data.fallback_info.message;
+                        const confidence = data.fallback_info.confidence;
+                        console.log(`⚠️ Fallback used: ${data.fallback_info.source} (confidence: ${confidence})`);
+                        
+                        // Show warning toast for low confidence routes
+                        if (confidence < 0.7) {
+                            this.showWarning(warning);
                         }
-                    }, 1000);
+                    }
 
                 } catch (error) {
                     this.showError(`Route calculation failed: ${error.message}`);
@@ -672,6 +684,15 @@
                 msgEl.textContent = msg;
                 toast.classList.add('show');
                 setTimeout(() => toast.classList.remove('show'), 5000);
+            }
+
+            showWarning(msg) {
+                const toast = document.getElementById('errorToast');
+                const msgEl = document.getElementById('errorMessage');
+                if (!toast || !msgEl) { alert('⚠️ ' + msg); return; }
+                msgEl.textContent = '⚠️ ' + msg;
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 8000);
             }
         }
 

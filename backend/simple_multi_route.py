@@ -3,10 +3,11 @@ import math
 import requests
 import polyline
 from aqi_cache import AQICache
+from route_fallback import get_route_with_fallback, get_fallback_message
 
 ROUTES_API_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
 AQI_API_URL = "https://airquality.googleapis.com/v1/currentConditions:lookup"
-API_KEY = os.getenv("Maps_API_KEY", "YOUR_KEY_HERE")
+API_KEY = os.getenv("Maps_API_KEY", "AIzaSyCzMoywDG3r8V_tPln24w-vRv6Y6_i85Hw")
 
 _cache = AQICache(ttl_seconds=600)
 
@@ -130,7 +131,26 @@ def _fetch_routes(origin_lat, origin_lon, dest_lat, dest_lon):
         
     except Exception as e:
         print(f"[Routes API error] {e}")
-        return []
+        print(f"[Fallback] Using fallback system...")
+        
+        # Use fallback system
+        route_data, source = get_route_with_fallback(origin_lat, origin_lon, dest_lat, dest_lon)
+        
+        # Convert fallback result to expected format
+        dur_str = route_data.get("duration", "0s")
+        dur_sec = int(dur_str) if isinstance(dur_str, int) else int(dur_str.replace("s", ""))
+        
+        result = [{
+            "route_id": 0,
+            "encoded_polyline": route_data["polyline"],
+            "duration_seconds": dur_sec,
+            "distance_meters": route_data.get("distance", 0),
+            "fallback_source": source,
+            "fallback_confidence": route_data.get("confidence", 0.4)
+        }]
+        
+        print(f"[Fallback] Route obtained from {source} (confidence: {route_data.get('confidence', 0.4)})")
+        return result
 
 def find_multi_routes(origin_lat, origin_lon, dest_lat, dest_lon):
     print(f"[Multi-Route] Finding routes from ({origin_lat:.4f}, {origin_lon:.4f}) to ({dest_lat:.4f}, {dest_lon:.4f})")
@@ -139,6 +159,18 @@ def find_multi_routes(origin_lat, origin_lon, dest_lat, dest_lon):
     
     if not routes:
         return {"error": "No routes found"}
+    
+    # Check if fallback was used and add message
+    fallback_info = None
+    if routes and routes[0].get("fallback_source"):
+        source = routes[0]["fallback_source"]
+        confidence = routes[0].get("fallback_confidence", 0.4)
+        fallback_info = {
+            "source": source,
+            "confidence": confidence,
+            "message": get_fallback_message(source, confidence)
+        }
+        print(f"[Multi-Route] Fallback used: {source} - {fallback_info['message']}")
     
     # Ensure we have at least 3 routes by creating variations if needed
     while len(routes) < 3:
@@ -189,7 +221,7 @@ def find_multi_routes(origin_lat, origin_lon, dest_lat, dest_lon):
             "route_type": f"route_{i+1}"
         })
     
-    return {
+    response = {
         "routes": response_routes,
         "total_routes": len(response_routes),
         "status": "success",
@@ -198,3 +230,9 @@ def find_multi_routes(origin_lat, origin_lon, dest_lat, dest_lon):
             "cache_size": _cache.size()
         }
     }
+    
+    # Add fallback info if fallback was used
+    if fallback_info:
+        response["fallback_info"] = fallback_info
+    
+    return response
