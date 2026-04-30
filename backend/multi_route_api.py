@@ -2,12 +2,8 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
-import sys
-
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from simple_multi_route import find_multi_routes
-from db import get_db_connection
 
 load_dotenv()
 
@@ -17,28 +13,6 @@ CORS(app)
 @app.route('/')
 def home():
     return "Kolkata AQI Multi-Route System - Version 2.0"
-
-@app.route('/health', methods=['GET'])
-def health():
-    """Health check endpoint to test PostgreSQL connection"""
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT 1;")
-        cur.fetchone()
-        cur.close()
-        conn.close()
-        return jsonify({
-            "success": True,
-            "status": "healthy",
-            "database": "connected"
-        })
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "status": "unhealthy",
-            "error": str(e)
-        }), 500
 
 @app.route('/routes/multi')
 def get_multi_routes():
