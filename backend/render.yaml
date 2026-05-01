@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: clean-air-route-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        value: postgresql://clean_air_route_db_user:IuWaWbxrONoHlljztOVXt8ljXkAe0CE5@dpg-d7n4m2pf9bms738aplcg-a.singapore-postgres.render.com/clean_air_route_db
+        sync: false
+      - key: Maps_API_KEY
+        value: AIzaSyCzMoywDG3r8V_tPln24w-vRv6Y6_i85Hw
+        sync: false
