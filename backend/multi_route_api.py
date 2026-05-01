@@ -3,6 +3,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 import sys
+import uuid
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -84,6 +85,111 @@ def get_stations():
 def test_system():
     """Test system with sample Kolkata coordinates"""
     return get_multi_routes()
+
+@app.route('/save-routes', methods=['POST'])
+def save_routes():
+    """Save multiple routes to PostgreSQL with PostGIS geometry"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'routes' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing routes data'
+            }), 400
+        
+        routes = data['routes']
+        batch_id = str(uuid.uuid4())
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # First, insert batch record
+        cur.execute("""
+            INSERT INTO route_batches (batch_id, data_source, start_lat, start_lon, end_lat, end_lon, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+            RETURNING id
+        """, (
+            batch_id,
+            data.get('data_source', 'unknown'),
+            data.get('start_lat'),
+            data.get('start_lon'),
+            data.get('end_lat'),
+            data.get('end_lon')
+        ))
+        
+        batch_db_id = cur.fetchone()[0]
+        
+        # Insert each route
+        saved_routes = []
+        for route in routes:
+            # Convert coordinates to LINESTRING for PostGIS
+            coordinates = route.get('coordinates', [])
+            if coordinates and len(coordinates) >= 2:
+                coord_pairs = []
+                for coord in coordinates:
+                    lon = float(coord[1])
+                    lat = float(coord[0])
+                    coord_pairs.append(f"{lon:.6f} {lat:.6f}")
+                coord_string = ', '.join(coord_pairs)
+                linestring = f"LINESTRING({coord_string})"
+            else:
+                linestring = None
+            
+            analysis = route.get('analysis', {})
+            
+            cur.execute("""
+                INSERT INTO routes (
+                    route_number,
+                    route_type,
+                    total_distance_km,
+                    total_travel_time_min,
+                    average_aqi,
+                    max_aqi,
+                    min_aqi,
+                    exposure_score,
+                    geometry,
+                    batch_id
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, ST_GeomFromText(%s, 4326), %s)
+                RETURNING id
+            """, (
+                route.get('route_number'),
+                route.get('route_type'),
+                analysis.get('total_distance_km'),
+                analysis.get('total_travel_time_min'),
+                analysis.get('average_aqi'),
+                analysis.get('max_aqi'),
+                analysis.get('min_aqi'),
+                analysis.get('exposure_score'),
+                linestring,
+                batch_id
+            ))
+            
+            route_id = cur.fetchone()[0]
+            saved_routes.append({
+                'id': route_id,
+                'route_number': route.get('route_number'),
+                'route_type': route.get('route_type')
+            })
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'batch_id': batch_id,
+            'batch_db_id': batch_db_id,
+            'routes_saved': len(saved_routes),
+            'routes': saved_routes
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5002))
