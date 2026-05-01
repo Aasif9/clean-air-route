@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: clean-air-route-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: Maps_API_KEY
+        sync: false
