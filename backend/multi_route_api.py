@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 import sys
 import uuid
+import json
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -88,7 +89,7 @@ def test_system():
 
 @app.route('/save-routes', methods=['POST'])
 def save_routes():
-    """Save multiple routes to PostgreSQL with PostGIS geometry"""
+    """Save multiple routes to PostgreSQL with PostGIS geometry and coordinate order preservation"""
     try:
         data = request.get_json()
         
@@ -138,6 +139,7 @@ def save_routes():
             
             analysis = route.get('analysis', {})
             
+            # Insert route with coordinates as JSONB
             cur.execute("""
                 INSERT INTO routes (
                     route_number,
@@ -149,9 +151,10 @@ def save_routes():
                     min_aqi,
                     exposure_score,
                     geometry,
+                    coordinates,
                     batch_id
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, ST_GeomFromText(%s, 4326), %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, ST_GeomFromText(%s, 4326), %s::jsonb, %s)
                 RETURNING id
             """, (
                 route.get('route_number'),
@@ -163,10 +166,21 @@ def save_routes():
                 analysis.get('min_aqi'),
                 analysis.get('exposure_score'),
                 linestring,
+                json.dumps(coordinates) if coordinates else None,
                 batch_id
             ))
             
             route_id = cur.fetchone()[0]
+            
+            # Insert individual coordinate points to preserve order
+            for point_order, coord in enumerate(coordinates):
+                lat = float(coord[0])
+                lng = float(coord[1])
+                cur.execute("""
+                    INSERT INTO route_points (route_id, point_order, lat, lng)
+                    VALUES (%s, %s, %s, %s)
+                """, (route_id, point_order, lat, lng))
+            
             saved_routes.append({
                 'id': route_id,
                 'route_number': route.get('route_number'),
