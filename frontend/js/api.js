@@ -71,6 +71,8 @@ class AQIAPI {
 
     async saveRoutes(routeData) {
         try {
+            console.log('[API] saveRoutes called with:', routeData);
+            console.log('[API] Full URL:', `${this.baseURL}/save-routes`);
             const response = await this.request('/save-routes', {
                 method: 'POST',
                 body: JSON.stringify(routeData)
@@ -79,6 +81,7 @@ class AQIAPI {
             return response;
         } catch (error) {
             console.error('❌ Failed to save routes to database:', error);
+            console.error('[API] Error details:', error.message);
             // Don't throw error - saving is optional, route calculation is primary
             return { success: false, error: error.message };
         }

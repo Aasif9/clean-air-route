@@ -238,12 +238,15 @@ class AQIRouteApp {
 
     async saveRoutesToDatabase(routeData) {
         try {
+            console.log('[DB Save] Starting saveRoutesToDatabase with data:', routeData);
+            
             // Prepare route data for database
             const routesToSave = [];
 
             // Handle the new multi-route format from backend
             if (routeData.routes && Array.isArray(routeData.routes)) {
                 // Backend returns: {routes: [{route_number, coordinates, analysis, ...}, ...]}
+                console.log('[DB Save] Using new multi-route format, found', routeData.routes.length, 'routes');
                 routeData.routes.forEach(route => {
                     routesToSave.push({
                         route_number: route.route_number,
@@ -255,6 +258,7 @@ class AQIRouteApp {
                 });
             } else {
                 // Fallback to old format for compatibility
+                console.log('[DB Save] Using old format fallback');
                 if (routeData.clean_route) {
                     routesToSave.push({
                         route_number: 1,
@@ -289,9 +293,11 @@ class AQIRouteApp {
             }
 
             if (routesToSave.length === 0) {
-                console.warn('No routes to save to database');
+                console.warn('[DB Save] No routes to save to database');
                 return;
             }
+
+            console.log('[DB Save] Prepared', routesToSave.length, 'routes for saving');
 
             // Save to database
             const saveData = {
@@ -303,14 +309,17 @@ class AQIRouteApp {
                 end_lon: this.endPoint.lon
             };
 
+            console.log('[DB Save] Sending to API:', saveData);
             const result = await this.api.saveRoutes(saveData);
+            console.log('[DB Save] API response:', result);
+            
             if (result.success) {
                 console.log(`✅ Saved ${result.routes_saved} routes to database (Batch ID: ${result.batch_id})`);
             } else {
-                console.error('Failed to save routes:', result.error);
+                console.error('❌ Failed to save routes:', result.error);
             }
         } catch (error) {
-            console.error('Failed to save routes to database:', error);
+            console.error('❌ Failed to save routes to database:', error);
         }
     }
 
