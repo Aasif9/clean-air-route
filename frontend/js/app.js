@@ -241,45 +241,62 @@ class AQIRouteApp {
             // Prepare route data for database
             const routesToSave = [];
 
-            // Add clean route
-            if (routeData.clean_route) {
-                routesToSave.push({
-                    route_number: 1,
-                    route_type: 'clean',
-                    analysis: routeData.clean_route.analysis,
-                    coordinates: routeData.clean_route.coordinates || [],
-                    node_count: routeData.clean_route.node_count || 0
-                });
-            }
-
-            // Add fast route
-            if (routeData.fast_route) {
-                routesToSave.push({
-                    route_number: 2,
-                    route_type: 'fast',
-                    analysis: routeData.fast_route.analysis,
-                    coordinates: routeData.fast_route.coordinates || [],
-                    node_count: routeData.fast_route.node_count || 0
-                });
-            }
-
-            // Add additional routes if available
-            if (routeData.additional_routes && routeData.additional_routes.length > 0) {
-                routeData.additional_routes.forEach((route, index) => {
+            // Handle the new multi-route format from backend
+            if (routeData.routes && Array.isArray(routeData.routes)) {
+                // Backend returns: {routes: [{route_number, coordinates, analysis, ...}, ...]}
+                routeData.routes.forEach(route => {
                     routesToSave.push({
-                        route_number: index + 3,
-                        route_type: `alternative_${index + 1}`,
+                        route_number: route.route_number,
+                        route_type: route.route_type || `route_${route.route_number}`,
                         analysis: route.analysis,
                         coordinates: route.coordinates || [],
                         node_count: route.node_count || 0
                     });
                 });
+            } else {
+                // Fallback to old format for compatibility
+                if (routeData.clean_route) {
+                    routesToSave.push({
+                        route_number: 1,
+                        route_type: 'clean',
+                        analysis: routeData.clean_route.analysis,
+                        coordinates: routeData.clean_route.coordinates || [],
+                        node_count: routeData.clean_route.node_count || 0
+                    });
+                }
+
+                if (routeData.fast_route) {
+                    routesToSave.push({
+                        route_number: 2,
+                        route_type: 'fast',
+                        analysis: routeData.fast_route.analysis,
+                        coordinates: routeData.fast_route.coordinates || [],
+                        node_count: routeData.fast_route.node_count || 0
+                    });
+                }
+
+                if (routeData.additional_routes && routeData.additional_routes.length > 0) {
+                    routeData.additional_routes.forEach((route, index) => {
+                        routesToSave.push({
+                            route_number: index + 3,
+                            route_type: `alternative_${index + 1}`,
+                            analysis: route.analysis,
+                            coordinates: route.coordinates || [],
+                            node_count: route.node_count || 0
+                        });
+                    });
+                }
+            }
+
+            if (routesToSave.length === 0) {
+                console.warn('No routes to save to database');
+                return;
             }
 
             // Save to database
             const saveData = {
                 routes: routesToSave,
-                data_source: 'google_live_api',
+                data_source: routeData.data_source || 'google_live_api',
                 start_lat: this.startPoint.lat,
                 start_lon: this.startPoint.lon,
                 end_lat: this.endPoint.lat,
@@ -289,22 +306,31 @@ class AQIRouteApp {
             const result = await this.api.saveRoutes(saveData);
             if (result.success) {
                 console.log(`✅ Saved ${result.routes_saved} routes to database (Batch ID: ${result.batch_id})`);
+            } else {
+                console.error('Failed to save routes:', result.error);
             }
         } catch (error) {
             console.error('Failed to save routes to database:', error);
-            // Don't show error to user - saving is optional
         }
     }
- 
+
     displayRoutes(data) {
-        // Draw main routes on map
-        this.map.drawRoute(data.clean_route, 'clean');
-        this.map.drawRoute(data.fast_route, 'fast');
-        
-        // Draw alternative routes if available
-        if (data.additional_routes && data.additional_routes.length > 0) {
-            console.log(`Drawing ${data.additional_routes.length} alternative routes`);
-            this.map.drawAlternativeRoutes(data.additional_routes);
+        // Handle new multi-route format
+        if (data.routes && Array.isArray(data.routes)) {
+            // Backend returns: {routes: [{route_number, coordinates, analysis, ...}, ...]}
+            data.routes.forEach((route, index) => {
+                const routeType = index === 0 ? 'clean' : (index === 1 ? 'fast' : 'alternative');
+                this.map.drawRoute(route, routeType);
+            });
+        } else {
+            // Fallback to old format
+            this.map.drawRoute(data.clean_route, 'clean');
+            this.map.drawRoute(data.fast_route, 'fast');
+            
+            if (data.additional_routes && data.additional_routes.length > 0) {
+                console.log(`Drawing ${data.additional_routes.length} alternative routes`);
+                this.map.drawAlternativeRoutes(data.additional_routes);
+            }
         }
         
         // Update route cards
